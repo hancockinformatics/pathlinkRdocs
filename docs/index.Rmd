@@ -46,7 +46,7 @@ indexed over time (i.e., T2 vs T1) (An et al. 2023).
 To install and load the package:
 ```{r load_library, message=FALSE}
 # We'll also be using some functions from dplyr
-# BiocManager::install("pathlinkR")
+# BiocManager::install("pathlinkR", version="devel")
 library(dplyr)
 library(pathlinkR)
 ```
@@ -59,13 +59,14 @@ cutoffs for both fold change and statistical significance. Thresholds of
 adjusted p-value <0.05 and absolute fold change >1.5 are used as the default,
 though any value can be specified. **pathlinkR** includes the function
 `eruption()` to create a volcano plot.
-```{r datasets_and_preliminary_volcano_plot}
+```{r datasets_and_preliminary_volcano_plot, message=FALSE}
 ## A quick look at the DESeq2 results table
-head(exampleDESeqResults[[1]])
+data("exampleDESeqResults")
+knitr::kable(head(exampleDESeqResults[[1]]))
 
 ## Generate a volcano plot from the first data frame, with default thresholds
 eruption(
-    deseqResult=exampleDESeqResults[[1]],
+    rnaseqResult=exampleDESeqResults[[1]],
     title=names(exampleDESeqResults[1])
 )
 ```
@@ -94,12 +95,13 @@ Let's make the following adjustment to the standard volcano plot:
 - Label only the top 10 up- and down-regulated genes which belong to the 
     interferon pathway
 ```{r customized_volcano_plot}
+data("sigoraDatabase")
 interferonGenes <- sigoraDatabase %>% 
     filter(pathwayName == "Interferon Signaling") %>% 
     pull(ensemblGeneId)
 
 eruption(
-    deseqResult=exampleDESeqResults[[1]],
+    rnaseqResult=exampleDESeqResults[[1]],
     title=names(exampleDESeqResults[1]),
     highlightGenes=interferonGenes,
     highlightName="Interferon genes (red)",
@@ -172,7 +174,7 @@ of their dysregulation (i.e. up- or down-regulated) by specifying
 `fillType="foldChange"`.
 ```{r ppi_networks, fig.width=12, fig.height=10, warning=FALSE}
 exNetwork <- ppiBuildNetwork(
-    deseqResults=exampleDESeqResults[[1]],
+    rnaseqResult=exampleDESeqResults[[1]],
     filterInput=TRUE,
     order="zero"
 )
@@ -180,7 +182,7 @@ exNetwork <- ppiBuildNetwork(
 ppiPlotNetwork(
     network=exNetwork,
     title=names(exampleDESeqResults)[1],
-    fillColumn=log2FoldChange,
+    fillColumn=LogFoldChange,
     fillType="foldChange",
     label=TRUE,
     labelColumn=hgncSymbol,
@@ -197,7 +199,7 @@ Let's make some tweaks to this standard network. The output of
 `ppiBuildNetwork()` is a *tidygraph* object, meaning we can use the suite of
 **dplyr** verbs to make changes. So let's add a column to denote if a DEG is
 from the interferon pathway (defined above) and highlight only those genes.
-```{r ppi_network_tweaks}
+```{r ppi_network_tweaks, warning=FALSE}
 exNetworkInterferon <- mutate(
     exNetwork,
     isInterferon = if_else(name %in% interferonGenes, "y", "n")
@@ -240,7 +242,7 @@ the "starting" nodes for extraction. For example, below we use the results from
 the Hallmark enrichment above to pull out a subnetwork of genes from the
 "Interferon Gamma Response" term, then plot this reduced network while
 highlighting the genes from the pathway:
-```{r ppiExtractSubnetwork}
+```{r ppiExtractSubnetwork, warning=FALSE}
 exSubnetwork <- ppiExtractSubnetwork(
     network=exNetwork,
     pathwayEnrichmentResult=exNetworkPathways,
@@ -251,7 +253,9 @@ ppiPlotNetwork(
     network=exSubnetwork,
     fillType="oneSided",
     fillColumn=degree,
-    labelColumn=hgncSymbol
+    label=TRUE,
+    labelColumn=hgncSymbol,
+    legendTitle = "Degree"
 )
 ```
 
@@ -329,6 +333,7 @@ as a background for the enrichment test; here we'll use all the genes which were
 tested for significance by DESeq2 (i.e. all genes from the count matrix), 
 converting them to Entrez gene IDs before running the test.
 ```{r reactomepa_enrichment}
+data("mappingFile")
 exGeneUniverse <- mappingFile %>% 
     filter(ensemblGeneId %in% rownames(exampleDESeqResults[[1]])) %>% 
     pull(entrezGeneId)
@@ -398,7 +403,7 @@ Let's again plot the sigora results, this time with the following tweaks:
 - Increase the truncation cutoff value of pathway names for more words
 ```{r plot_pathways_II, fig.width=8, fig.height=8}
 pathwayPlots(
-    enrichedResultsSigora,
+    pathwayEnrichmentResults=enrichedResultsSigora,
     specificTopPathways="Immune System",
     colourValues=c("#440154", "#FDE725"),
     newGroupNames=c("COVID\nPositive", "COVID\nNegative"),
@@ -431,8 +436,12 @@ Jaccard distance, but there is support for multiple distance measures to be
 used. Once this "foundation" of pathway interactions is created, a pathway
 network can be built using the `createPathnet` function:
 ```{r pathway_network_I, fig.width=12, fig.height=10, warning=FALSE}
+data("sigoraExamples")
+
+pathwayDistancesJaccard <- getPathwayDistances(pathwayData = sigoraDatabase)
+
 startingPathways <- pathnetFoundation(
-    mat=pathwayDistancesJaccard, # Using pre-computed distances
+    mat=pathwayDistancesJaccard,
     maxDistance=0.8
 )
 
@@ -447,7 +456,7 @@ myPathwayNetwork <- pathnetCreate(
 ```
 
 There are two options for visualization, the first being a static network:
-```{r plot_pathnet_I}
+```{r plot_pathnet_I, warning=FALSE}
 pathnetGGraph(
     myPathwayNetwork,
     labelProp=0.1,
