@@ -1,2 +1,2 @@
 # pathlinkRdocs
-Full vignette for Bioconductor package pathlinkR: [https://hancockinformatics.github.io/pathlinkRdocs/](https://hancockinformatics.github.io/pathlinkRdocs/)
+The full vignette for the Bioconductor package pathlinkR has moved to: https://hancockinformatics.github.io/pathlinkR
